@@ -1,23 +1,26 @@
 package com.example.booksapp.ui.homepage
 
 import android.os.Bundle
-import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.core.view.isVisible
+import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import com.example.booksapp.R
-import com.example.booksapp.data.model.GetBookResponse
+import com.example.booksapp.common.visible
 import com.example.booksapp.databinding.FragmentHomeBinding
-import com.example.booksapp.data.retrofit.retrofitClient
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class HomeFragment : Fragment(), BooksAdapter.BookListener {
+
     private lateinit var binding: FragmentHomeBinding
+
     private val booksAdapter by lazy { BooksAdapter(this) }
+
+    private val viewModel by viewModels<HomeViewModel>()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -31,27 +34,29 @@ class HomeFragment : Fragment(), BooksAdapter.BookListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        getAllBooks()
         binding.rvBooks.adapter = booksAdapter
+
+        viewModel.getAllBooks()
+        observeData()
     }
 
-    private fun getAllBooks() {
-        retrofitClient.retrofit.getAllBooks().enqueue(object: Callback<GetBookResponse> {
-            override fun onResponse(
-                call: Call<GetBookResponse>,
-                response: Response<GetBookResponse>
-            ) {
-                val getAllBooks = response.body()?.books
-                if(getAllBooks.isNullOrEmpty().not())
-                    booksAdapter.submitList(getAllBooks)
-            }
+    private fun observeData(){
+        viewModel.loadingLiveData.observe(viewLifecycleOwner){
+            binding.progressBar.isVisible = it
+        }
 
-            override fun onFailure(call: Call<GetBookResponse>, t: Throwable) {
-                Log.e("getAllBooks", t.message.orEmpty())
+        viewModel.booksLiveData.observe(viewLifecycleOwner){ list ->
+            if(list != null){
+                 booksAdapter.submitList(list)
+            }else{
+                Toast.makeText(requireContext(), "empty list", Toast.LENGTH_SHORT).show()
             }
-
-        })
+        }
+        viewModel.errorMessageLiveData.observe(viewLifecycleOwner){
+            Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+        }
     }
+
 
     override fun onBookClick(id: Int) {
         val direction = HomeFragmentDirections.actionHomeToDetail(id)
